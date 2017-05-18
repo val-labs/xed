@@ -17,7 +17,7 @@ void**mkvec(int cap){
   ss->fill = 0; ss->cap = cap; return ss->s;}
 FILE*_LOG=0;
 #define LOG(...) fprintf(_LOG,__VA_ARGS__)
-#define ERR(...) LOG(__VA_ARGS__),exit(1)
+#define ERROR(...) LOG(__VA_ARGS__),exit(1)
 void*goodbye(){endwin();LOG("Goodbye!\n");exit(0);}
 int fget(char*buf,int buf_sz, FILE*f){
   long p0 = ftell(f); return(!fgets(buf,buf_sz,f))?0:ftell(f)-p0;}
@@ -32,29 +32,36 @@ FP keymapM_x[512];
 FP*keymap=keymapDef;
 int _inhibit_keymap_reset=0;
 long c,minx=0,miny=0,maxy=0,maxx=0,row=0,col=0;
-int usage(){ERR(">> Need filename.\n");}
-void*up()   {if(row)--row;}
-void*down() {if(row+1<FIL(Buffer))++row;}
-void*left() {if(col)--col;}
-void*right(){if(col+1<=FIL(Buffer[row]))++col;}
-void*useKeymapM_x(){keymap=keymapM_x;_inhibit_keymap_reset=1;}
-void*useKeymapC_x(){keymap=keymapC_x;_inhibit_keymap_reset=1;}
-void*useKeymapEsc(){keymap=keymapEsc;_inhibit_keymap_reset=1;}
+int usage(){ERROR(">> Need filename.\n");}
+void range_check(){if(col+1>FIL(Buffer[row]))col=FIL(Buffer[row]);}
+void*up()   {if(row)--row;              range_check();return 0;}
+void*down() {if(row+1<FIL(Buffer))++row;range_check();return 0;}
+void*left() {if(col)--col;                            return 0;}
+void*right(){if(col+1<=FIL(Buffer[row]))++col;        return 0;}
+void*useKeymapM_x(){keymap=keymapM_x;_inhibit_keymap_reset=1;return 0;}
+void*useKeymapC_x(){keymap=keymapC_x;_inhibit_keymap_reset=1;return 0;}
+void*useKeymapEsc(){keymap=keymapEsc;_inhibit_keymap_reset=1;return 0;}
 void*saveBuffer(){
   move(30,30); printw("SAVE ME");
   int n=0; FILE*f=fopen("OUT","w+");
   for(;n<FIL(Buffer);n++) fprintf(f, "%s", Buffer[n]);
-  fclose(f);}
-void*loadBuffer(){move(30,30); printw("LOAD ME");}
+  fclose(f);return 0;}
+void*loadBuffer(){move(30,30); printw("LOAD ME"); return 0;}
 void*statusUpdate(){
   move(maxy-1, maxx/2);
   printw("| c = %3d  (%2d,%2d) ", c, col+1, row+1);
   printw("[%2d,%2d]", FIL(Buffer[row]), FIL(Buffer));
-  move(row, col);}
+  move(row, col); return 0;}
 void*refreshBuffer(){
   int n=0; clear();
   for(;n<FIL(Buffer);n++) addstr(Buffer[n]);
-  statusUpdate();}
+  statusUpdate();return 0;}
+void*overwriteChar(){
+  addch(c);
+  char *x = Buffer[row];
+  x[col] = c;
+  ++col;
+  return 0;}
 void step(){
   FP f = keymap[c=getch()];
   if(f) f();
@@ -68,6 +75,8 @@ int main(int argc, char*argv[]){
   bzero(keymapM_x,sizeof(keymapDef));
   keymapDef[24] = useKeymapC_x;
   keymapDef[27] = useKeymapEsc;
+  for(c=' ';c<128;c++)
+    keymapDef[c]= overwriteChar;
   keymapEsc['x']= useKeymapM_x;
   keymapEsc['X']= useKeymapM_x;
   keymapC_x['C'-'A'+1] = goodbye;
